@@ -23,6 +23,7 @@ class Room(models.Model):
         ('gym', 'Спортзал'),
     ]
     
+    
     id = models.CharField(max_length=10, primary_key=True)
     number = models.CharField(max_length=50)
     capacity = models.IntegerField(validators=[MinValueValidator(1)])
