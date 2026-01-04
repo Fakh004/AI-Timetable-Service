@@ -10,6 +10,7 @@ def index(request):
     """Главная страница с расписанием"""
     teachers = Teacher.objects.all()
     rooms = Room.objects.all()
+    
     lessons = Lesson.objects.all()
     
     # Получаем все классы
