@@ -73,6 +73,7 @@ class AIAdminChatAPIView(APIView):
             result = ai.process_command(ser.validated_data['command'])
             return Response(result)
         except Exception as e:
+            
             return Response({'error': str(e)}, status=500)
 
 class BulkDeleteAPIView(APIView):
