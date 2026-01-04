@@ -13,6 +13,7 @@ class ScheduleAIService:
 
     def get_current_state(self):
         """Получаем текущее состояние расписания"""
+        
         teachers = list(Teacher.objects.all().values('id', 'name', 'subject', 'email'))
         rooms = list(Room.objects.all().values('id', 'number', 'capacity').annotate(type=F('room_type')))
         lessons = list(Lesson.objects.all().values(
