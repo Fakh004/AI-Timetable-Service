@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}Расписание - SmartSchool{% endblock %}
+{% block page_title %}Школьное Расписание{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Еженедельный план</h1>
+            <p class="text-slate-500 mt-1">Текущее расписание занятий на семестр 2024</p>
+        </div>
+        <div class="text-right hidden sm:block">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-widest">Сегодня</p>
+            <p class="font-semibold text-slate-800" id="today-date"></p>
+        </div>
+    </div>
+
+    <!-- Фильтр по классам -->
+    <div class="flex flex-wrap items-center justify-between gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Фильтр классов</label>
+                <select id="grade-filter" class="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer">
+                    <option value="0">----</option>
+                    {% for grade in grades %}
+                    <option value="{{ grade }}">{{ grade }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица расписания -->
+    <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white">
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse min-w-[900px]" id="schedule-table">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200">
+                        <th class="p-4 text-center w-24 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Пара</th>
+                        <th class="p-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-l border-slate-200">ПН</th>
+                        <th class="p-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-l border-slate-200">ВТ</th>
+                        <th class="p-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-l border-slate-200">СР</th>
+                        <th class="p-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-l border-slate-200">ЧТ</th>
+                        <th class="p-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-l border-slate-200">ПТ</th>
+                    </tr>
+                </thead>
+                <tbody id="schedule-body" class="divide-y divide-slate-200">
+                    <!-- Заполняется JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const SLOTS = [1, 2, 3, 4, 5, 6, 7, 8];
+const DAYS_RU = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ'];
+const COLOR_MAP = {
+    'indigo': 'bg-indigo-50 border-indigo-500 text-indigo-700',
+    'blue': 'bg-blue-50 border-blue-500 text-blue-700',
+    'green': 'bg-green-50 border-green-500 text-green-700',
+    'amber': 'bg-amber-50 border-amber-500 text-amber-700',
+};
+
+const lessons = {{ lessons|safe }};
+const teachers = {{ teachers|safe }};
+const rooms = {{ rooms|safe }};
+
+function getTeacherName(id) {
+    const teacher = teachers.find(t => t.id === id);
+    return teacher ? teacher.name : 'Неизвестно';
+}
+
+function getRoomNumber(id) {
+    const room = rooms.find(r => r.id === id);
+    return room ? room.number : '???';
+}
+
+function renderSchedule() {
+    const selectedGrade = document.getElementById('grade-filter').value;
+    const tbody = document.getElementById('schedule-body');
+    tbody.innerHTML = '';
+
+    SLOTS.forEach(slot => {
+        const row = document.createElement('tr');
+        row.className = 'group';
+        
+        let slotCell = `<td class="p-4 bg-slate-50/50">
+            <div class="flex flex-col items-center">
+                <span class="text-lg font-bold text-slate-700">${slot}</span>
+                <span class="text-[10px] text-slate-400">${['08:30', '09:25', '10:30', '11:25'][slot-1] || '...'}</span>
+            </div>
+        </td>`;
+        
+        DAYS.forEach(day => {
+            const lesson = lessons.find(l => 
+                l.day === day && l.slot === slot && 
+                (selectedGrade === 'all' || l.grade === selectedGrade)
+            );
+            
+            if (lesson) {
+                const colorClass = COLOR_MAP[lesson.color] || COLOR_MAP['indigo'];
+                slotCell += `<td class="p-2 border-l border-slate-200 min-w-[160px] align-top">
+                    <div class="border-l-4 p-3 rounded-r-xl shadow-sm h-full ${colorClass}">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-[10px] font-black uppercase">${lesson.grade}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 bg-white/50 rounded-md font-bold">№${getRoomNumber(lesson.roomId)}</span>
+                        </div>
+                        <div class="font-bold text-sm leading-tight mb-2">${lesson.subject}</div>
+                        <div class="text-[11px] font-medium opacity-80">
+                            👨‍🏫 ${getTeacherName(lesson.teacherId)}
+                        </div>
+                    </div>
+                </td>`;
+            } else {
+                slotCell += `<td class="p-2 border-l border-slate-200 min-w-[160px] align-top">
+                    <div class="h-full min-h-[80px] flex items-center justify-center border-2 border-dashed border-slate-100 rounded-xl text-slate-200">
+                        <span class="text-[10px] font-bold uppercase">Окно</span>
+                    </div>
+                </td>`;
+            }
+        });
+        
+        row.innerHTML = slotCell;
+        tbody.appendChild(row);
+    });
+}
+
+document.getElementById('grade-filter').addEventListener('change', renderSchedule);
+
+// Установка текущей даты
+document.getElementById('today-date').textContent = new Date().toLocaleDateString('ru-RU', { 
+    weekday: 'long', day: 'numeric', month: 'long' 
+});
+
+renderSchedule();
+</script>
+
+<style>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+}
+</style>
+{% endblock %}
