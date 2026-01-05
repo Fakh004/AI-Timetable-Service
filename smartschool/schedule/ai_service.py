@@ -7,13 +7,13 @@ import random
 
 class ScheduleAIService:
     def __init__(self):
+        """Инициализация с API ключом Gemini"""
         self.api_key = config('GEMINI_API_KEY', default='')
         if self.api_key:
             genai.configure(api_key=self.api_key)
 
     def get_current_state(self):
         """Получаем текущее состояние расписания"""
-
         teachers = list(Teacher.objects.all().values('id', 'name', 'subject', 'email'))
         rooms = list(Room.objects.all().values('id', 'number', 'capacity').annotate(type=F('room_type')))
         lessons = list(Lesson.objects.all().values(
@@ -34,11 +34,11 @@ class ScheduleAIService:
         try:
             current_data = self.get_current_state()
             result = self._process_with_ai(command, current_data)
-            
-            # Сразу сохраняем изменения в БД
-            self._apply_changes(result['updatedData'])
-            return result
 
+            # Сохраняем изменения только если AI вернул что-то полезное
+            if 'updatedData' in result and result['updatedData'].get('lessons'):
+                self._apply_changes(result['updatedData'])
+            return result
 
         except Exception as e:
             import traceback
@@ -49,8 +49,10 @@ class ScheduleAIService:
             }
 
     def _process_with_ai(self, command: str, current_data: dict = None):
+        """Обработка команды через AI Gemini"""
         current_data = self.get_current_state() if current_data is None else current_data
-        """Обработка с использованием AI Gemini"""
+
+        # Усиленный prompt, чтобы AI всегда возвращал нужные поля
         prompt = f"""
 Ты помощник по управлению школьным расписанием.
 Текущее состояние:
@@ -60,10 +62,13 @@ class ScheduleAIService:
 
 Команда пользователя: "{command}"
 
+Обязательные поля для каждого урока:
+id, teacherId, roomId, subject, day, slot (1-8), grade, color
+
 Используй только уникальные строковые ID для новых объектов:
-- Учителя: t1, t2, ...
-- Кабинеты: r1, r2, ...
-- Уроки: l1, l2, ...
+Учителя: t1, t2, ...
+Кабинеты: r1, r2, ...
+Уроки: l1, l2, ...
 
 Верни ТОЛЬКО JSON без пояснений:
 {{
@@ -90,11 +95,11 @@ class ScheduleAIService:
             text = text.strip()
 
             result = json.loads(text)
-            
+
             # Проверяем структуру
             if 'updatedData' not in result or 'explanation' not in result:
                 raise ValueError("AI вернул некорректный JSON")
-            
+
             return result
 
         except Exception as e:
@@ -111,6 +116,9 @@ class ScheduleAIService:
         try:
             # Учителя
             for teacher in data.get('teachers', []):
+                if not all(k in teacher for k in ('id', 'name', 'subject')):
+                    print(f"⚠️ Учитель пропущен, нет обязательных полей: {teacher}")
+                    continue
                 Teacher.objects.update_or_create(
                     id=teacher['id'],
                     defaults={
@@ -122,6 +130,9 @@ class ScheduleAIService:
 
             # Кабинеты
             for room in data.get('rooms', []):
+                if not all(k in room for k in ('id', 'number', 'capacity')):
+                    print(f"⚠️ Кабинет пропущен, нет обязательных полей: {room}")
+                    continue
                 room_obj, created = Room.objects.get_or_create(
                     id=room['id'],
                     defaults={
@@ -136,14 +147,14 @@ class ScheduleAIService:
                     room_obj.save(update_fields=['capacity', 'room_type'])
 
             # Уроки
-            existing_ids = set(Lesson.objects.values_list('id', flat=True))
-            new_ids = {l['id'] for l in data.get('lessons', [])}
+            REQUIRED_FIELDS = {'id', 'teacherId', 'roomId', 'subject', 'day', 'slot', 'grade'}
 
-            # Удаляем старые
-            Lesson.objects.filter(id__in=existing_ids - new_ids).delete()
-
-            # Создаём / обновляем
             for lesson in data.get('lessons', []):
+                missing = REQUIRED_FIELDS - lesson.keys()
+                if missing:
+                    print(f"⚠️ Урок пропущен, нет обязательных полей {missing}: {lesson}")
+                    continue
+
                 Lesson.objects.update_or_create(
                     id=lesson['id'],
                     defaults={
@@ -163,3 +174,5 @@ class ScheduleAIService:
             import traceback
             traceback.print_exc()
             print(f"❌ Ошибка при обновлении БД: {str(e)}")
+
+

@@ -7,13 +7,11 @@ from .ai_service import ScheduleAIService
 import json
 
 def index(request):
-    """Главная страница с расписанием"""
     teachers = Teacher.objects.all()
     rooms = Room.objects.all()
-    
+
     lessons = Lesson.objects.all()
     
-    # Получаем все классы
     grades = list(set(lesson.grade for lesson in lessons))
     grades.sort()
     

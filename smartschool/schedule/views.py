@@ -73,7 +73,7 @@ class AIAdminChatAPIView(APIView):
             result = ai.process_command(ser.validated_data['command'])
             return Response(result)
         except Exception as e:
-            
+
             return Response({'error': str(e)}, status=500)
 
 class BulkDeleteAPIView(APIView):
@@ -83,3 +83,4 @@ class BulkDeleteAPIView(APIView):
             return Response({'error': 'No IDs'}, status=400)
         deleted, _ = Lesson.objects.filter(id__in=ids).delete()
         return Response({'deleted': deleted})
+    
